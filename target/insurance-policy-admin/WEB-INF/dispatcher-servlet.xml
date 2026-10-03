@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:mvc="http://www.springframework.org/schema/mvc"
+       xsi:schemaLocation="
+           http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+           http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+           http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc.xsd">
+
+    <!-- Component scan for controllers AND the exception package (required for @ControllerAdvice
+         to be picked up by the dispatcher-servlet context - omitting this silently disables
+         centralized error handling with no startup error). -->
+    <context:component-scan base-package="com.insurancepolicyadmin.controller"/>
+    <context:component-scan base-package="com.insurancepolicyadmin.exception"/>
+
+    <bean id="objectMapper" class="org.springframework.http.converter.json.Jackson2ObjectMapperFactoryBean">
+        <property name="modulesToInstall" value="com.fasterxml.jackson.datatype.jsr310.JavaTimeModule"/>
+        <property name="failOnUnknownProperties" value="false"/>
+    </bean>
+
+    <bean id="jacksonMessageConverter" class="org.springframework.http.converter.json.MappingJackson2HttpMessageConverter">
+        <property name="objectMapper" ref="objectMapper"/>
+    </bean>
+
+    <mvc:annotation-driven>
+        <mvc:message-converters register-defaults="false">
+            <ref bean="jacksonMessageConverter"/>
+        </mvc:message-converters>
+    </mvc:annotation-driven>
+
+</beans>

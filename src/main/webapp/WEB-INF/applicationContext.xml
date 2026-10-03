@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xsi:schemaLocation="
+           http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+           http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+           http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd">
+
+    <context:component-scan base-package="com.insurancepolicyadmin.service"/>
+    <context:component-scan base-package="com.insurancepolicyadmin.dao.hibernate"/>
+    <context:component-scan base-package="com.insurancepolicyadmin.dao.jdbc"/>
+
+    <context:property-placeholder location="classpath:jdbc.properties"/>
+
+    <!-- Shared DataSource - used by both the Hibernate SessionFactory and the JdbcTemplate,
+         keeping the DAO-level split (not the connection-pool split) as the visible boundary. -->
+    <bean id="dataSource" class="org.apache.commons.dbcp2.BasicDataSource" destroy-method="close">
+        <property name="driverClassName" value="${jdbc.driverClassName}"/>
+        <property name="url" value="${jdbc.url}"/>
+        <property name="username" value="${jdbc.username}"/>
+        <property name="password" value="${jdbc.password}"/>
+    </bean>
+
+    <!-- Hibernate side -->
+    <bean id="sessionFactory" class="org.springframework.orm.hibernate5.LocalSessionFactoryBean">
+        <property name="dataSource" ref="dataSource"/>
+        <property name="packagesToScan" value="com.insurancepolicyadmin.model.entity"/>
+        <property name="hibernateProperties">
+            <props>
+                <prop key="hibernate.dialect">org.hibernate.dialect.MySQL8Dialect</prop>
+                <prop key="hibernate.hbm2ddl.auto">validate</prop>
+                <prop key="hibernate.show_sql">false</prop>
+            </props>
+        </property>
+    </bean>
+
+    <bean id="hibernateTransactionManager" class="org.springframework.orm.hibernate5.HibernateTransactionManager">
+        <property name="sessionFactory" ref="sessionFactory"/>
+    </bean>
+
+    <!-- Spring JDBC side -->
+    <bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+        <constructor-arg ref="dataSource"/>
+    </bean>
+
+    <bean id="jdbcTransactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>
+    <!-- Chained manager for MIXED service methods that touch BOTH a Hibernate DAO and a
+         Spring-JDBC (stored-procedure) DAO in the same call. It begins both transactions
+         (hibernate then jdbc) and commits them together (jdbc then hibernate), so the
+         Hibernate Session always has a live transaction to flush into at commit time while
+         the JDBC stored-procedure work also commits. Fixes the
+         TransactionRequiredException ("no transaction is in progress") that occurred when a
+         Hibernate Session opened inside a JDBC-only transaction tried to flush at commit. -->
+    <bean id="chainedTransactionManager"
+          class="org.springframework.data.transaction.ChainedTransactionManager">
+        <constructor-arg>
+            <list>
+                <ref bean="hibernateTransactionManager"/>
+                <ref bean="jdbcTransactionManager"/>
+            </list>
+        </constructor-arg>
+    </bean>
+
+    <tx:annotation-driven transaction-manager="hibernateTransactionManager" order="1"/>
+    <tx:annotation-driven transaction-manager="jdbcTransactionManager" order="2"/>
+
+</beans>
